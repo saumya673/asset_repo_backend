@@ -1,6 +1,8 @@
 import uvicorn
-from fastapi import Depends, FastAPI, Query, Response
+from fastapi import Depends, FastAPI, Query, Response, UploadFile, File, HTTPException
+import tempfile
 from openai import AzureOpenAI
+from services.ppt import extract_text_from_pptx
 from models import Project
 from services.db.base import DBClient
 from services.db.sqlite import get_sqlite_db
@@ -23,31 +25,60 @@ def projects(
     response.headers["page-size"] = str(page_size)
     return db.get_projects(page_num=page_num, page_size=page_size)
 
-@app.post("/chat")
-def chat(msg: str):
+
+@app.post("/create-project")
+async def chat(file: UploadFile = File(...)):
+    if not file.filename.endswith(".pptx"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .pptx files are supported"
+        )
+
+    contents = await file.read()
+
+    
+    ppt_text = extract_text_from_pptx(contents)
+
+    if not ppt_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="No readable text found in the PPT file"
+        )
+    
     client = AzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        api_version="2025-03-01-preview"
+        api_version="2025-03-01-preview",
     )
 
-    response = client.chat.completions.create(
-        model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-        messages=[
-            {"role": "user", "content": msg}
-        ]
-    )
+    try:
+        response = client.chat.completions.create(
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that analyzes PowerPoint presentations."
+                },
+                {
+                    "role": "user",
+                    "content": f"""
+Analyze this PowerPoint content and summarize it clearly.
 
-    return response
+PowerPoint content:
 
+{ppt_text}
+"""
+                }
+            ]
+        )
 
-
-
-
-
-
-
-
+        return {
+            "filename": file.filename,
+            "extracted_text": ppt_text,
+            "answer": response.choices[0].message.content
+        }
+    except Exception as e:
+        raise e
 
 def main():
     uvicorn.run(app="main:app", reload=True)

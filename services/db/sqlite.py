@@ -11,6 +11,7 @@ class SqliteDB(DBClient):
             "asset_repo.db",
             check_same_thread=False
         )
+        self.con.row_factory = sqlite3.Row
         self.con.execute(
             """
             CREATE TABLE IF NOT EXISTS projects (
@@ -40,10 +41,13 @@ class SqliteDB(DBClient):
 
         rows = cursor.fetchall()
 
-        return [
-            Project.model_validate(json.loads(row["info"]))
-            for row in rows
-        ]
+        projects: list[Project] = []
+        for row in rows:
+            payload = row["info"]
+            project_data = json.loads(payload) if isinstance(payload, str) else payload
+            projects.append(Project.model_validate(project_data))
+        
+        return projects
 
     def save_project(self, id: UUID, project: Project, ppt_text: str) -> Project:
         stored_project = project.model_copy(update={"id": id})

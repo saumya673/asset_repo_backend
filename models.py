@@ -11,12 +11,12 @@ class Stats(BaseModel):
 
 class Project(BaseModel):
     id: UUID = Field(default_factory=uuid4)
-    title: str = Field(description="")
+    title: str = Field(description="Title of the ppt")
     desc: str = Field(description="")
     rating: int = Field(description="", ge=1, le=5)
     badge: str = Field(description="")
     badge_variant: Literal["gold","crimson","neutral"] = Field(description="neutral")
-    image: str = Field(description="")
+    image: str = Field(description="Image url")
     avatar_count: int = Field(default=0, description="")
     long_desc: str = Field(description="")
     tags: list[str]= Field(description="")

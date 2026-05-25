@@ -1,6 +1,5 @@
 import uvicorn
 from fastapi import Depends, FastAPI, Query, Response, UploadFile, File, HTTPException
-import tempfile
 from openai import AzureOpenAI
 from services.ppt import extract_text_from_pptx
 from models import Project
@@ -26,8 +25,8 @@ def projects(
     return db.get_projects(page_num=page_num, page_size=page_size)
 
 
-@app.post("/create-project")
-async def chat(file: UploadFile = File(...)):
+@app.post("/save-project")
+async def chat(file: UploadFile = File(...), db: DBClient = Depends(get_sqlite_db)):
     if not file.filename.endswith(".pptx"):
         raise HTTPException(
             status_code=400,
@@ -36,7 +35,6 @@ async def chat(file: UploadFile = File(...)):
 
     contents = await file.read()
 
-    
     ppt_text = extract_text_from_pptx(contents)
 
     if not ppt_text.strip():
@@ -52,7 +50,7 @@ async def chat(file: UploadFile = File(...)):
     )
 
     try:
-        response = client.chat.completions.create(
+        response = client.chat.completions.parse(
             model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
             messages=[
                 {
@@ -62,20 +60,19 @@ async def chat(file: UploadFile = File(...)):
                 {
                     "role": "user",
                     "content": f"""
-Analyze this PowerPoint content and summarize it clearly.
+                        Analyze this PowerPoint content and summarize it clearly.
 
-PowerPoint content:
-
-{ppt_text}
-"""
+                        PowerPoint content:
+                        {ppt_text}
+                    """
                 }
-            ]
+            ],
+            response_format=Project
         )
-
+        result = response.choices[0].message.parsed
+        db.save_project(id=result.id,project=result,ppt_text=ppt_text) #id, project, project ppt in text
         return {
-            "filename": file.filename,
-            "extracted_text": ppt_text,
-            "answer": response.choices[0].message.content
+            "answer": result
         }
     except Exception as e:
         raise e

@@ -1,39 +1,69 @@
 import sqlite3
 import json
+from uuid import UUID
 from models import Project
 from services.db.base import DBClient
 
 
 class SqliteDB(DBClient):
-
     def __init__(self):
-        self.con = sqlite3.connect("asset_repo.db")
-        self.con.row_factory = sqlite3.Row
-        self.cur = self.con.cursor()
-        self.cur.execute("CREATE TABLE IF NOT EXISTS projects(id UUID PRIMARY KEY, info JSONB, full_ppt TEXT)")
+        self.con = sqlite3.connect(
+            "asset_repo.db",
+            check_same_thread=False
+        )
+        self.con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS projects (
+                id TEXT PRIMARY KEY,
+                info JSONB NOT NULL,
+                full_ppt TEXT NOT NULL
+            )
+            """
+        )
+        self.con.commit()
+
+    def close(self):
+        self.con.close()
 
     def get_projects(self, page_num: int, page_size: int) -> list[Project]:
-        if page_num < 1:
-            raise ValueError("page_num must be >= 1")
-        if page_size < 1:
-            raise ValueError("page_size must be >= 1")
-
         offset = (page_num - 1) * page_size
-        cursor = self.cur
-        cursor.execute(
-            "SELECT id, info FROM projects ORDER BY id LIMIT ? OFFSET ?",
+
+        cursor = self.con.execute(
+            """
+            SELECT id, info
+            FROM projects
+            ORDER BY id
+            LIMIT ? OFFSET ?
+            """,
             (page_size, offset),
         )
+
         rows = cursor.fetchall()
 
-        projects: list[Project] = []
-        for row in rows:
-            payload = row["info"]
-            project_data = json.loads(payload) if isinstance(payload, str) else payload
-            projects.append(Project.model_validate(project_data))
+        return [
+            Project.model_validate(json.loads(row["info"]))
+            for row in rows
+        ]
 
-        return projects
-    
+    def save_project(self, id: UUID, project: Project, ppt_text: str) -> Project:
+        stored_project = project.model_copy(update={"id": id})
+        payload = json.dumps(stored_project.model_dump(mode="json"))
+
+        self.con.execute(
+            """
+            INSERT INTO projects (id, info, full_ppt)
+            VALUES (?, ?, ?)
+            """,
+            (str(id), payload, ppt_text),
+        )
+        self.con.commit()
+
+        return stored_project
+
 
 def get_sqlite_db():
-    return SqliteDB()
+    db = SqliteDB()
+    try:
+        yield db
+    finally:
+        db.close()

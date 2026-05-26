@@ -49,6 +49,24 @@ class SqliteDB(DBClient):
         
         return projects
 
+    def get_project_by_ppt_text(self, ppt_text: str) -> Project | None:
+        cursor = self.con.execute(
+            """
+            SELECT info
+            FROM projects
+            WHERE full_ppt = ?
+            LIMIT 1
+            """,
+            (ppt_text,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+
+        payload = row["info"]
+        project_data = json.loads(payload) if isinstance(payload, str) else payload
+        return Project.model_validate(project_data)
+
     def save_project(self, id: UUID, project: Project, ppt_text: str) -> Project:
         stored_project = project.model_copy(update={"id": id})
         payload = json.dumps(stored_project.model_dump(mode="json"))

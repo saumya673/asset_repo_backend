@@ -12,7 +12,6 @@ load_dotenv()
 
 app = FastAPI()
 
-
 @app.get("/projects")
 def projects(
     response: Response,
@@ -42,6 +41,12 @@ async def chat(file: UploadFile = File(...), db: DBClient = Depends(get_sqlite_d
             status_code=400,
             detail="No readable text found in the PPT file"
         )
+
+    existing_project = db.get_project_by_ppt_text(ppt_text)
+    if existing_project is not None:
+        return {
+            "answer": existing_project
+        }
     
     client = AzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -55,7 +60,12 @@ async def chat(file: UploadFile = File(...), db: DBClient = Depends(get_sqlite_d
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant that analyzes PowerPoint presentations."
+                    "content": (
+                        "You analyze PowerPoint presentations and must return structured output that matches the schema exactly. "
+                        "Classify service, domain, scope, and type using only the allowed enum values from the schema. "
+                        "For tags, return only values from those same allowed lists; tags may mix service, domain, scope, and type values. "
+                        "Do not invent new labels, synonyms, or free-text categories."
+                    )
                 },
                 {
                     "role": "user",

@@ -36,12 +36,12 @@ class Scope(StrEnum):
 
 class ProjectType(StrEnum):
     SUCCESS_STORY = "Success story"
-    CASE_STUDY = "case study"
-    AI_AGENT = "ai agent"
-    TOOL_UTILITY = "tool/utility"
+    CASE_STUDY = "Case study"
+    AI_AGENT = "Ai agent"
+    TOOL_UTILITY = "Tool/Utility"
     BOT = "Bot"
-    FRAMEWORK = "framework"
-    WHITEPAPER = "whitepaper"
+    FRAMEWORK = "Framework"
+    WHITEPAPER = "Whitepaper"
 
 
 SERVICE_VALUES = [item.value for item in Service]

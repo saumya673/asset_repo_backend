@@ -67,6 +67,24 @@ class SqliteDB(DBClient):
         project_data = json.loads(payload) if isinstance(payload, str) else payload
         return Project.model_validate(project_data)
 
+    def get_project_by_id(self, id: UUID) -> Project | None:
+        cursor = self.con.execute(
+            """
+            SELECT info
+            FROM projects
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (str(id),),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+
+        payload = row["info"]
+        project_data = json.loads(payload) if isinstance(payload, str) else payload
+        return Project.model_validate(project_data)
+
     def save_project(self, id: UUID, project: Project, ppt_text: str) -> Project:
         stored_project = project.model_copy(update={"id": id})
         payload = json.dumps(stored_project.model_dump(mode="json"))
@@ -79,6 +97,25 @@ class SqliteDB(DBClient):
             (str(id), payload, ppt_text),
         )
         self.con.commit()
+
+        return stored_project
+
+    def update_project(self, id: UUID, project: Project) -> Project:
+        stored_project = project.model_copy(update={"id": id})
+        payload = json.dumps(stored_project.model_dump(mode="json"))
+
+        cursor = self.con.execute(
+            """
+            UPDATE projects
+            SET info = ?
+            WHERE id = ?
+            """,
+            (payload, str(id)),
+        )
+        self.con.commit()
+
+        if cursor.rowcount == 0:
+            raise KeyError(f"Project {id} not found")
 
         return stored_project
 

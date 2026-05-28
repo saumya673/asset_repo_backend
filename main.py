@@ -1,18 +1,20 @@
+from typing import Annotated
+
 import uvicorn
-from fastapi import Depends, FastAPI, Query, Response, UploadFile, File, HTTPException
-from openai import AzureOpenAI
+from fastapi import Body, Depends, FastAPI, Query, Response, UploadFile, File, HTTPException, Form
+
+from services.llm import analyze_ppt
 from services.ppt import extract_text_from_pptx
 from models import Project
 from services.db.base import DBClient
 from services.db.sqlite import get_sqlite_db
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
 app = FastAPI()
 
-@app.get("/projects")
+@app.get("/assets")
 def projects(
     response: Response,
     page_num: int = Query(default=1, ge=1),
@@ -24,7 +26,7 @@ def projects(
     return db.get_projects(page_num=page_num, page_size=page_size)
 
 
-@app.post("/save-project")
+@app.post("/save-asset")
 async def chat(file: UploadFile = File(...), db: DBClient = Depends(get_sqlite_db)):
     if not file.filename.endswith(".pptx"):
         raise HTTPException(
@@ -47,45 +49,33 @@ async def chat(file: UploadFile = File(...), db: DBClient = Depends(get_sqlite_d
         return {
             "answer": existing_project
         }
-    
-    client = AzureOpenAI(
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        api_version="2025-03-01-preview",
-    )
 
     try:
-        response = client.chat.completions.parse(
-            model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You analyze PowerPoint presentations and must return structured output that matches the schema exactly. "
-                        "Classify service, domain, scope, and type using only the allowed enum values from the schema. "
-                        "For tags, return only values from those same allowed lists; tags may mix service, domain, scope, and type values. "
-                        "Do not invent new labels, synonyms, or free-text categories."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": f"""
-                        Analyze this PowerPoint content and summarize it clearly.
-
-                        PowerPoint content:
-                        {ppt_text}
-                    """
-                }
-            ],
-            response_format=Project
-        )
-        result = response.choices[0].message.parsed
+        result = await analyze_ppt(ppt_text=ppt_text)
         db.save_project(id=result.id,project=result,ppt_text=ppt_text) #id, project, project ppt in text
         return {
             "answer": result
         }
     except Exception as e:
         raise e
+
+
+@app.put("/update-asset", response_model=Project)
+async def update_asset(
+    asset_input: Annotated[Project, Body()],
+    db: DBClient = Depends(get_sqlite_db),
+):
+    project_id = asset_input.id
+
+    existing_project = db.get_project_by_id(project_id)
+    if existing_project is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project {project_id} not found",
+        )
+
+    return db.update_project(project_id, asset_input)
+
 
 def main():
     uvicorn.run(app="main:app", reload=True)

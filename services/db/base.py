@@ -11,8 +11,15 @@ class DBClient(ABC):
     @abstractmethod
     def get_project_by_ppt_text(self, ppt_text: str) -> Project | None:
         pass
+
+    @abstractmethod
+    def get_project_by_id(self, id: UUID) -> Project | None:
+        pass
     
     @abstractmethod
     def save_project(self, id: UUID, project: Project, ppt_text: str) -> Project:
         pass
 
+    @abstractmethod
+    def update_project(self, id: UUID, project: Project) -> Project:
+        pass

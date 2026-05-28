@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
-from models import Project
+from models import Project, ProjectMetadata
 
 
 class DBClient(ABC):
@@ -14,6 +14,10 @@ class DBClient(ABC):
 
     @abstractmethod
     def get_project_by_id(self, id: UUID) -> Project | None:
+        pass
+
+    @abstractmethod
+    def get_asset_file_metadata(self, file_id: str) -> ProjectMetadata | None:
         pass
     
     @abstractmethod

@@ -1,7 +1,7 @@
 import sqlite3
 import json
 from uuid import UUID
-from models import Project
+from models import Project, ProjectMetadata
 from services.db.base import DBClient
 
 
@@ -84,6 +84,26 @@ class SqliteDB(DBClient):
         payload = row["info"]
         project_data = json.loads(payload) if isinstance(payload, str) else payload
         return Project.model_validate(project_data)
+
+    def get_asset_file_metadata(self, file_id: str) -> ProjectMetadata | None:
+        cursor = self.con.execute(
+            """
+            SELECT isu, subisu, account
+            FROM asset_file_metadata
+            WHERE file_id = ?
+            LIMIT 1
+            """,
+            (file_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+
+        return ProjectMetadata(
+            isu=row["isu"],
+            sub_Isu=row["subisu"],
+            account=row["account"],
+        )
 
     def save_project(self, id: UUID, project: Project, ppt_text: str) -> Project:
         stored_project = project.model_copy(update={"id": id})

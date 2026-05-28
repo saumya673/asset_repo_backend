@@ -13,7 +13,12 @@ class Stats(BaseModel):
     variant: Literal["gold","crimson","neutral"] = Field(default="neutral", description="neutral")
     progress: int = Field(default=0, description="", ge=0, le=100)
 
-class Project(BaseModel):
+class ProjectMetadata(BaseModel):
+    isu: str = Field(default="", description="Business domain name like Banking, Financial Services & Insurance (BFSI); Healthcare; Retail")
+    sub_Isu: str = Field(default="", description="Sub business domain name")
+    account: str = Field(default="", description="")
+
+class Project(ProjectMetadata):
     id: UUID = Field(default_factory=uuid4)
     title: str = Field(description="Title of the ppt")
     desc: str = Field(default="", description="")
@@ -28,9 +33,6 @@ class Project(BaseModel):
     domain: Domain = Field(description="One allowed domain value.")
     scope: Scope = Field(description="One allowed scope value.")
     tech_stack: list[str] = Field(description="technology stacks used to build project")
-    isu: str = Field(default="", description="Business domain name like Banking, Financial Services & Insurance (BFSI); Healthcare; Retail")
-    sub_Isu: str = Field(default="", description="Sub business domain name")
-    account: str = Field(default="", description="")
     type: ProjectType = Field(description="One allowed type value.")
     implemented_year: str = Field(default="", description="year in which this project was build")
     associate_name: str = Field(default="", description="person who build or took lead in this project")

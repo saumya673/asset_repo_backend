@@ -1,18 +1,17 @@
 from typing import Annotated
-
 import uvicorn
-from fastapi import Body, Depends, FastAPI, Query, Response, UploadFile, File, HTTPException, Form
-
+from fastapi import Body, Depends, FastAPI, Query, Response, UploadFile, File, HTTPException
 from services.llm import analyze_ppt
 from services.ppt import extract_text_from_pptx
-from models import Project
+from models import Project, ProjectMetadata
 from services.db.base import DBClient
 from services.db.sqlite import get_sqlite_db
 from dotenv import load_dotenv
+from services.startup import lifespan
 
 load_dotenv()
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/assets")
 def projects(
@@ -33,6 +32,9 @@ async def chat(file: UploadFile = File(...), db: DBClient = Depends(get_sqlite_d
             status_code=400,
             detail="Only .pptx files are supported"
         )
+    file_id = file.filename.split("_")[0]
+
+    metadata = db.get_asset_file_metadata(file_id) or ProjectMetadata()
 
     contents = await file.read()
 
@@ -52,7 +54,9 @@ async def chat(file: UploadFile = File(...), db: DBClient = Depends(get_sqlite_d
 
     try:
         result = await analyze_ppt(ppt_text=ppt_text)
-        db.save_project(id=result.id,project=result,ppt_text=ppt_text) #id, project, project ppt in text
+        result = result.model_copy(update=metadata.model_dump())
+
+        db.save_project(id=result.id, project=result, ppt_text=ppt_text)
         return {
             "answer": result
         }
